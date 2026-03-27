@@ -1,0 +1,1291 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>가야금 산조 시각화 — 최옥삼류</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            height: 100%; overflow: hidden;
+            background: #0B0E1A; color: #E0E0E0;
+            font-family: 'Noto Sans KR', -apple-system, sans-serif;
+            user-select: none;
+        }
+
+        #overlay {
+            position: fixed; inset: 0;
+            background: rgba(11, 14, 26, 0.97);
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            z-index: 200; cursor: pointer;
+            transition: opacity 0.6s ease;
+        }
+        #overlay.hidden { opacity: 0; pointer-events: none; }
+        #overlay h1 {
+            font-size: 2.6rem; font-weight: 300;
+            letter-spacing: 0.15em;
+            background: linear-gradient(135deg, #FFD700 0%, #FFA000 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text; margin-bottom: 0.3rem;
+        }
+        #overlay .subtitle {
+            font-size: 1.15rem; opacity: 0.5;
+            font-weight: 300; margin-bottom: 2.5rem;
+        }
+        #overlay .start-hint {
+            font-size: 0.95rem; opacity: 0.35;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 0.25; }
+            50% { opacity: 0.6; }
+        }
+
+        #controls {
+            position: fixed; top: 0; left: 0; right: 0;
+            height: 52px;
+            background: rgba(11, 14, 26, 0.92);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(255, 215, 0, 0.12);
+            display: flex; align-items: center;
+            padding: 0 20px; z-index: 100; gap: 14px;
+        }
+
+        #playBtn {
+            width: 34px; height: 34px;
+            border: 1.5px solid rgba(255, 215, 0, 0.35);
+            border-radius: 50%; background: transparent;
+            color: #FFD700; font-size: 13px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s; flex-shrink: 0;
+        }
+        #playBtn:hover {
+            background: rgba(255, 215, 0, 0.08);
+            border-color: rgba(255, 215, 0, 0.6);
+        }
+
+        #timeDisplay {
+            font-size: 12.5px; font-variant-numeric: tabular-nums;
+            opacity: 0.7; min-width: 95px; flex-shrink: 0;
+        }
+
+        #progressContainer {
+            flex: 1; height: 5px;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 3px; cursor: pointer;
+            position: relative; overflow: hidden;
+        }
+        #progressFill {
+            height: 100%; width: 0%; border-radius: 3px;
+            background: linear-gradient(90deg, #FFD700, #FFA000);
+            transition: width 0.08s linear;
+            pointer-events: none;
+        }
+
+        #jangdanInfo {
+            display: flex; flex-direction: column;
+            align-items: flex-end; flex-shrink: 0; min-width: 70px;
+        }
+        #jangdanLabel {
+            font-size: 14px; font-weight: 500;
+            transition: color 0.3s;
+        }
+
+        #zoomControls { display: flex; gap: 5px; flex-shrink: 0; }
+        .zoom-btn {
+            width: 26px; height: 26px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 4px; background: transparent;
+            color: #aaa; font-size: 15px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.15s;
+        }
+        .zoom-btn:hover { background: rgba(255,255,255,0.07); color: #fff; }
+
+        #topBand {
+            position: fixed; left: 0; right: 0; bottom: 58px;
+            height: 128px;
+            background: rgba(11, 14, 26, 0.22);
+            backdrop-filter: blur(6px);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 96;
+            padding: 6px 18px 8px;
+        }
+        #jangdanMiniLabels {
+            display: flex; gap: 16px; align-items: center;
+            font-size: 10.5px; letter-spacing: 0.03em;
+            opacity: 0.55;
+            margin-bottom: 6px;
+            padding-right: 170px;
+        }
+        #jangdanMiniLabels span {
+            color: rgba(255, 255, 255, 0.78);
+            transition: color 0.2s, opacity 0.2s;
+        }
+        #jangdanMiniLabels span.active {
+            color: #FFD700;
+            opacity: 1;
+            font-weight: 500;
+        }
+        #nonghyeonWrap {
+            height: 72px;
+            background: rgba(255, 255, 255, 0.00);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 7px;
+            overflow: hidden;
+        }
+        #jangdanStrip {
+            position: relative;
+            height: 18px;
+            margin-bottom: 5px;
+            border-radius: 5px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.12);
+        }
+        .jangdan-seg {
+            position: absolute; top: 0; bottom: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 10px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.95);
+            white-space: nowrap;
+            overflow: hidden;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+        }
+        #jangdanStripNeedle {
+            position: absolute; top: -2px; bottom: -2px;
+            left: 0%;
+            width: 2px;
+            transform: translateX(-1px);
+            background: #FFD700;
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.75);
+            pointer-events: none;
+        }
+        #nonghyeonCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        #currentJangdanBadge {
+            position: absolute;
+            top: 7px;
+            right: 18px;
+            font-size: 10.5px;
+            opacity: 0.72;
+            color: rgba(255, 255, 255, 0.9);
+            letter-spacing: 0.02em;
+            pointer-events: none;
+        }
+
+        canvas {
+            position: fixed; top: 52px; left: 0; right: 0; bottom: 186px;
+            width: 100%; height: calc(100vh - 238px);
+        }
+
+        #globalTimeline {
+            position: fixed; left: 0; right: 0; bottom: 0;
+            height: 58px;
+            background: rgba(11, 14, 26, 0.94);
+            border-top: 1px solid rgba(255, 215, 0, 0.14);
+            backdrop-filter: blur(10px);
+            z-index: 95;
+            display: flex; flex-direction: column;
+            justify-content: center;
+            padding: 8px 18px 7px;
+            gap: 5px;
+        }
+        #globalTrack {
+            position: relative;
+            height: 10px;
+            cursor: pointer;
+        }
+        #globalSegments {
+            position: absolute; inset: 0;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.12);
+            overflow: hidden;
+        }
+        #globalPlayed {
+            position: absolute; left: 0; top: 0; bottom: 0;
+            width: 0%;
+            border-radius: 6px 0 0 6px;
+            background: linear-gradient(90deg, rgba(255, 215, 0, 0.65), rgba(255, 160, 0, 0.55));
+            pointer-events: none;
+        }
+        #globalNeedle {
+            position: absolute; top: -4px; bottom: -4px;
+            left: 0%;
+            width: 2px;
+            background: #FFD700;
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.65);
+            transform: translateX(-1px);
+            pointer-events: none;
+        }
+        #globalTimeLabels {
+            display: flex; justify-content: space-between;
+            font-size: 11px; opacity: 0.55;
+            font-variant-numeric: tabular-nums;
+        }
+
+        #helpHint {
+            position: fixed; bottom: 196px; right: 18px;
+            font-size: 11px; opacity: 0.25; z-index: 50;
+            pointer-events: none;
+        }
+
+        #jangdanImageWidget {
+            position: fixed;
+            top: 58px;
+            right: 12px;
+            width: 336px;
+            height: 96px;
+            display: none;
+            z-index: 120;
+            border: none;
+            border-radius: 6px;
+            overflow: hidden;
+            background: transparent;
+        }
+        #jangdanImage {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: none;
+        }
+        #jangdanImageFallback {
+            position: absolute; inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.01em;
+            color: rgba(255,255,255,0.9);
+            padding: 10px;
+            background: linear-gradient(150deg, rgba(255,215,0,0.12), rgba(77,208,225,0.1));
+        }
+    </style>
+</head>
+<body>
+    <div id="overlay">
+        <h1>최옥삼류 가야금산조</h1>
+        <p class="subtitle">장구 장단 시각화</p>
+        <div class="start-hint">클릭하여 시작</div>
+    </div>
+
+    <div id="controls">
+        <button id="playBtn" aria-label="재생/일시정지">▶</button>
+        <span id="timeDisplay">0:00 / 0:00</span>
+        <div id="progressContainer"><div id="progressFill"></div></div>
+        <div id="jangdanInfo"><span id="jangdanLabel">—</span></div>
+        <div id="zoomControls">
+            <button class="zoom-btn" id="zoomOut" title="축소 (-)">−</button>
+            <button class="zoom-btn" id="zoomIn" title="확대 (+)">+</button>
+        </div>
+    </div>
+
+    <div id="topBand">
+        <div id="jangdanMiniLabels">
+            <span data-label="진양">진양</span>
+            <span data-label="중모리">중모리</span>
+            <span data-label="중중모리">중중모리</span>
+            <span data-label="자진모리">자진모리</span>
+            <span data-label="휘모리">휘모리</span>
+        </div>
+        <div id="jangdanStrip"><div id="jangdanStripNeedle"></div></div>
+        <div id="nonghyeonWrap"><canvas id="nonghyeonCanvas"></canvas></div>
+        <div id="currentJangdanBadge">— 장단 연주중</div>
+    </div>
+
+    <canvas id="canvas"></canvas>
+    <div id="globalTimeline">
+        <div id="globalTrack">
+            <div id="globalSegments"></div>
+            <div id="globalPlayed"></div>
+            <div id="globalNeedle"></div>
+        </div>
+        <div id="globalTimeLabels">
+            <span>0:00</span>
+            <span id="globalEnd">0:00</span>
+        </div>
+    </div>
+    <div id="helpHint">Space: 재생 &nbsp; ←→: 탐색 &nbsp; +−: 줌 &nbsp; 스크롤: 줌</div>
+
+    <audio id="audio" preload="auto" src="audio.wav"></audio>
+    <div id="jangdanImageWidget">
+        <img id="jangdanImage" alt="현재 장단 이미지">
+        <div id="jangdanImageFallback">장단 이미지 준비중</div>
+    </div>
+
+    <script>
+    (function() {
+        'use strict';
+
+        const NOTE_COLORS = {
+            '덩':  '#FF6B6B',
+            '덕':  '#4DD0E1',
+            '더':  '#26C6DA',
+            '쿵':  '#7986CB',
+            '땁':  '#FFD54F',
+            '덕더': '#CE93D8',
+            '덕덕': '#80CBC4'
+        };
+
+        const JANGDAN_STYLE = {
+            '진양':   { bg: 'rgba(25, 50, 130, 0.10)',  accent: '#5C7FBF' },
+            '중모리':  { bg: 'rgba(25, 110, 85, 0.10)',  accent: '#4DB6A0' },
+            '중중모리': { bg: 'rgba(55, 110, 25, 0.10)',  accent: '#8BC34A' },
+            '자진모리': { bg: 'rgba(130, 85, 25, 0.10)',  accent: '#FFB74D' },
+            '휘모리':  { bg: 'rgba(150, 40, 40, 0.10)',  accent: '#EF5350' }
+        };
+
+        const LANE_DEFS = [
+            { name: '합장단 (덩)', notes: new Set(['덩']), color: '#FF6B6B' },
+            { name: '채편',      notes: new Set(['덕', '더', '덕더', '덕덕', '땁']), color: '#4DD0E1' },
+            { name: '궁편 (쿵)', notes: new Set(['쿵']), color: '#7986CB' }
+        ];
+
+        const NOTE_RADIUS = { '덩': 24, '더': 16, '덕더': 21, '덕덕': 21, default: 19 };
+        const NOTE_VISIBILITY_BOOST = 1.25;
+        const LANE_LABEL_W = 80;
+        const NOWLINE_RATIO = 0.16;
+        const LANE_FIXED_SPACING = 84; // px, keeps lane gap stable across large windows
+        const LANE_STRIPE_HEIGHT = 46; // px, compact lane cell height
+        const PITCH_VIEW_RATIO = 0.42; // 0~1, smaller means visually narrower pitch band
+
+        let pps = 180; // pixels per second
+
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const nonghyeonCanvas = document.getElementById('nonghyeonCanvas');
+        const nctx = nonghyeonCanvas.getContext('2d');
+        const audio = document.getElementById('audio');
+        const overlay = document.getElementById('overlay');
+        const playBtn = document.getElementById('playBtn');
+        const timeDisplay = document.getElementById('timeDisplay');
+        const progressFill = document.getElementById('progressFill');
+        const progressContainer = document.getElementById('progressContainer');
+        const jangdanLabelEl = document.getElementById('jangdanLabel');
+        const jangdanMiniLabels = Array.from(document.querySelectorAll('#jangdanMiniLabels span'));
+        const jangdanStrip = document.getElementById('jangdanStrip');
+        const jangdanStripNeedle = document.getElementById('jangdanStripNeedle');
+        const currentJangdanBadge = document.getElementById('currentJangdanBadge');
+        const globalTrack = document.getElementById('globalTrack');
+        const globalSegments = document.getElementById('globalSegments');
+        const globalPlayed = document.getElementById('globalPlayed');
+        const globalNeedle = document.getElementById('globalNeedle');
+        const globalEnd = document.getElementById('globalEnd');
+        const jangdanImageWidget = document.getElementById('jangdanImageWidget');
+        const jangdanImage = document.getElementById('jangdanImage');
+        const jangdanImageFallback = document.getElementById('jangdanImageFallback');
+        const IMAGE_CACHE_BUSTER = Date.now();
+
+        const IMAGE_SOURCE_MAP = {
+            '진양': [
+                { src: 'assets/jangdan/jinyang_01.png', caption: '진양조 1장단' },
+                { src: 'assets/jangdan/jinyang_02.png', caption: '진양조 2장단' },
+                { src: 'assets/jangdan/jinyang_03.png', caption: '진양조 3장단' }
+            ],
+            '중모리': [
+                { src: 'assets/jangdan/jungmori.png', caption: '중모리 장단' }
+            ],
+            '중중모리': [
+                { src: 'assets/jangdan/jungjungmori.png', caption: '중중모리 장단' }
+            ],
+            '자진모리': [
+                { src: 'assets/jangdan/jajinmori.png', caption: '자진모리 장단' }
+            ],
+            '휘모리': [
+                { src: 'assets/jangdan/hwimori.png', caption: '휘모리 장단' }
+            ]
+        };
+
+        let onsets = [];
+        let jangdanTypeSections = [];
+        let cycleBoundaries = [];
+        let beatMarkers = [];
+        let imageCues = [];
+        let pitchContour = [];
+        let pitchMin = 0;
+        let pitchMax = 0;
+        let pitchMinLog = 0;
+        let pitchMaxLog = 0;
+        let hitEffects = [];
+        let isPlaying = false;
+        let cw = 0, ch = 0, nowX = 0, dpr = 1;
+        let nw = 0, nh = 0, nonghyeonNowX = 0;
+        let laneYs = [];
+        let laneNoteMap = {};
+        let audioReady = false, dataReady = false;
+        let progressGradient = '';
+
+        // Build note -> lane index map
+        LANE_DEFS.forEach((lane, i) => {
+            lane.notes.forEach(n => { laneNoteMap[n] = i; });
+        });
+
+        function hexToRgb(hex) {
+            const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return m ? [parseInt(m[1],16), parseInt(m[2],16), parseInt(m[3],16)] : [128,128,128];
+        }
+        const rgbCache = {};
+        function getRgb(hex) {
+            if (!rgbCache[hex]) rgbCache[hex] = hexToRgb(hex);
+            return rgbCache[hex];
+        }
+        function rgba(hex, a) {
+            const [r,g,b] = getRgb(hex);
+            return `rgba(${r},${g},${b},${a})`;
+        }
+        function formatTime(s) {
+            if (!s || isNaN(s)) return '0:00';
+            return Math.floor(s/60) + ':' + String(Math.floor(s%60)).padStart(2,'0');
+        }
+        function displayJangdanName(label) {
+            if (label === '진양') return '진양조';
+            return label || '—';
+        }
+
+        async function fetchTextOrThrow(path) {
+            let resp;
+            try {
+                resp = await fetch(path);
+            } catch (err) {
+                throw new Error(`${path} 요청 실패 (${err.message})`);
+            }
+            if (!resp.ok) {
+                throw new Error(`${path} 로딩 실패 (HTTP ${resp.status})`);
+            }
+            return resp.text();
+        }
+
+        // ─── Data Loading ───
+        async function loadData() {
+            try {
+                if (window.location.protocol === 'file:') {
+                    throw new Error('file:// 경로에서는 데이터를 불러올 수 없습니다. 로컬 HTTP 서버로 열어주세요.');
+                }
+
+                const [onsetText, jdText] = await Promise.all([
+                    fetchTextOrThrow('note_onsets.csv'),
+                    fetchTextOrThrow('jangdan_start.csv')
+                ]);
+
+                onsets = onsetText.trim().split('\n').slice(1).filter(l => l.trim()).map(line => {
+                    const p = line.split(',');
+                    return {
+                        t: +p[0], label: p[1].trim(), bi: +p[2],
+                        note: p[3].trim(), js: +p[4], bd: +p[5],
+                        crossed: false
+                    };
+                });
+
+                const jdRows = jdText.trim().split('\n').slice(1).filter(l => l.trim()).map(line => {
+                    const parts = line.split(',');
+                    return {
+                        start: +parts[0],
+                        label: (parts[1] || '').trim(),
+                        totalBeats: +(parts[3] || 0)
+                    };
+                });
+
+                cycleBoundaries = jdRows.map(r => r.start);
+
+                let curLabel = null, sections = [];
+                for (const r of jdRows) {
+                    if (r.label !== curLabel) {
+                        sections.push({ start: r.start, label: r.label, end: 0 });
+                        curLabel = r.label;
+                    }
+                }
+                const lastT = onsets.length ? onsets[onsets.length-1].t + 3 : 200;
+                for (let i = 0; i < sections.length; i++) {
+                    sections[i].end = i < sections.length - 1 ? sections[i+1].start : lastT;
+                }
+                jangdanTypeSections = sections;
+                beatMarkers = buildBeatMarkers(jdRows);
+                imageCues = buildImageCues(jdRows, sections, lastT);
+
+                // Optional: real pitch contour exported from Sonic Visualiser
+                try {
+                    const pitchResp = await fetch('pitch_contour.csv');
+                    if (pitchResp.ok) {
+                        const pitchText = await pitchResp.text();
+                        parsePitchContour(pitchText);
+                    }
+                } catch (e) {
+                    // Keep running even when pitch contour is unavailable.
+                }
+
+                dataReady = true;
+                checkReady();
+            } catch (e) {
+                console.error('loadData failed:', e);
+                overlay.querySelector('.start-hint').textContent = '데이터 로딩 오류: ' + e.message;
+            }
+        }
+
+        function onAudioReady() {
+            if (audioReady) return;
+            audioReady = true;
+            checkReady();
+        }
+        function tryPromoteAudioReady() {
+            // Some browsers never emit canplaythrough reliably for large WAV files.
+            if (!audioReady && audio.readyState >= HTMLMediaElement.HAVE_METADATA) {
+                onAudioReady();
+            }
+        }
+        audio.addEventListener('canplaythrough', onAudioReady);
+        audio.addEventListener('canplay', onAudioReady);
+        audio.addEventListener('loadeddata', onAudioReady);
+        audio.addEventListener('error', (e) => {
+            const hint = overlay.querySelector('.start-hint');
+            const code = audio.error ? audio.error.code : '?';
+            hint.textContent = `오디오 로딩 오류 (code ${code}) — audio.wav 확인`;
+            hint.style.color = '#EF5350';
+        });
+        audio.addEventListener('progress', () => {
+            if (!audioReady && audio.buffered.length > 0 && audio.duration) {
+                const pct = Math.round(audio.buffered.end(0) / audio.duration * 100);
+                overlay.querySelector('.start-hint').textContent =
+                    `오디오 로딩 중... ${pct}%`;
+            }
+        });
+        audio.addEventListener('loadedmetadata', () => {
+            tryPromoteAudioReady();
+            if (!audioReady) {
+                overlay.querySelector('.start-hint').textContent = '오디오 로딩 중...';
+            }
+        });
+        audio.addEventListener('stalled', () => {
+            tryPromoteAudioReady();
+            if (!audioReady) {
+                overlay.querySelector('.start-hint').textContent = '오디오 버퍼링 중...';
+            }
+        });
+        audio.addEventListener('suspend', tryPromoteAudioReady);
+        audio.addEventListener('durationchange', tryPromoteAudioReady);
+
+        function checkReady() {
+            if (audioReady && dataReady) {
+                overlay.querySelector('.start-hint').textContent = '클릭하여 시작';
+                buildProgressGradient();
+            }
+        }
+
+        function buildProgressGradient() {
+            const d = audio.duration;
+            if (!d || !jangdanTypeSections.length) return;
+            let stops = [];
+            for (const s of jangdanTypeSections) {
+                const c = JANGDAN_STYLE[s.label]?.accent || '#888';
+                stops.push(`${c} ${(s.start/d*100).toFixed(1)}%`);
+                stops.push(`${c} ${(Math.min(s.end,d)/d*100).toFixed(1)}%`);
+            }
+            progressGradient = `linear-gradient(to right, ${stops.join(', ')})`;
+            globalSegments.style.background = progressGradient;
+            buildJangdanStrip(d);
+        }
+
+        function buildBeatMarkers(jdRows) {
+            const markers = [];
+            if (!jdRows.length) return markers;
+            for (let i = 0; i < jdRows.length; i++) {
+                const cur = jdRows[i];
+                const next = jdRows[i + 1];
+                const beats = Math.max(1, cur.totalBeats || 1);
+
+                let endTime;
+                if (next) {
+                    endTime = next.start;
+                } else if (i > 0) {
+                    const prev = jdRows[i - 1];
+                    const prevBeats = Math.max(1, prev.totalBeats || 1);
+                    const prevBeatDur = (cur.start - prev.start) / prevBeats;
+                    endTime = cur.start + prevBeatDur * beats;
+                } else {
+                    endTime = cur.start + beats;
+                }
+
+                const beatDur = (endTime - cur.start) / beats;
+                const midIdx = Math.floor(beats / 2);
+                for (let bi = 0; bi < beats; bi++) {
+                    const t = cur.start + bi * beatDur;
+                    let accent = 0.22; // weak
+                    if (bi === 0) accent = 1.0; // strong (first beat)
+                    else if (bi === midIdx) accent = 0.58; // medium
+                    markers.push({ t, accent, label: cur.label, beatIndex: bi });
+                }
+            }
+            return markers;
+        }
+
+        function buildImageCues(jdRows, sections, fallbackEnd) {
+            const cues = [];
+
+            for (const [label, variants] of Object.entries(IMAGE_SOURCE_MAP)) {
+                if (!variants || !variants.length) continue;
+
+                if (label === '진양') {
+                    const cycles = jdRows.filter((row) => row.label === label);
+                    for (let i = 0; i < Math.min(variants.length, cycles.length); i++) {
+                        const cur = cycles[i];
+                        const next = cycles[i + 1];
+                        const section = sections.find((s) => s.label === label);
+                        cues.push({
+                            start: i === 0 ? 0 : cur.start,
+                            end: next ? next.start : (section?.end ?? fallbackEnd),
+                            src: variants[i].src,
+                            caption: variants[i].caption
+                        });
+                    }
+                    continue;
+                }
+
+                const sectionMatches = sections.filter((s) => s.label === label);
+                for (const section of sectionMatches) {
+                    cues.push({
+                        start: section.start,
+                        end: section.end,
+                        src: variants[0].src,
+                        caption: variants[0].caption
+                    });
+                }
+            }
+
+            return cues.sort((a, b) => a.start - b.start);
+        }
+
+        function parsePitchContour(text) {
+            const rows = text.split(/\r?\n/);
+            const pts = [];
+            for (const row of rows) {
+                const line = row.trim();
+                if (!line) continue;
+                const parts = line.split(',');
+                if (parts.length < 2) continue;
+                const t = +parts[0];
+                const f = +parts[1];
+                const c = parts.length >= 3 ? +parts[2] : 1;
+                if (!isFinite(t)) continue;
+                // Allow lower-confidence frames so nonghyeon stays continuous,
+                // but still reject obvious tracking failures and implausible outliers.
+                const valid = isFinite(f) && f >= 40 && f <= 2200 && isFinite(c) && c >= 0.08;
+                pts.push({ t, f, c, valid });
+            }
+            if (!pts.length) return;
+            pitchContour = pts.sort((a, b) => a.t - b.t);
+
+            // Robust min/max from 2~98 percentile to avoid outliers flattening the contour.
+            const fs = pitchContour
+                .filter(p => p.valid)
+                .map(p => p.f)
+                .sort((a, b) => a - b);
+            if (!fs.length) return;
+            const lo = fs[Math.floor(fs.length * 0.02)];
+            const hi = fs[Math.floor(fs.length * 0.98)];
+            pitchMin = lo;
+            pitchMax = hi > lo ? hi : lo + 1;
+            pitchMinLog = Math.log10(Math.max(1e-9, pitchMin));
+            pitchMaxLog = Math.log10(Math.max(1e-9, pitchMax));
+            if (!(pitchMaxLog > pitchMinLog)) {
+                pitchMaxLog = pitchMinLog + 1e-6;
+            }
+        }
+
+        function pitchLowerBound(t) {
+            let lo = 0, hi = pitchContour.length;
+            while (lo < hi) {
+                const mid = (lo + hi) >> 1;
+                if (pitchContour[mid].t < t) lo = mid + 1;
+                else hi = mid;
+            }
+            return lo;
+        }
+
+        function buildJangdanStrip(duration) {
+            if (!duration || !jangdanTypeSections.length) return;
+            jangdanStrip.innerHTML = '';
+            for (const s of jangdanTypeSections) {
+                const left = Math.max(0, (s.start / duration) * 100);
+                const right = Math.min(100, (s.end / duration) * 100);
+                const width = Math.max(0.7, right - left);
+                const seg = document.createElement('div');
+                seg.className = 'jangdan-seg';
+                seg.style.left = `${left}%`;
+                seg.style.width = `${width}%`;
+                seg.style.background = rgba(JANGDAN_STYLE[s.label]?.accent || '#888', 0.95);
+                seg.textContent = width > 6 ? s.label : '';
+                jangdanStrip.appendChild(seg);
+            }
+            jangdanStrip.appendChild(jangdanStripNeedle);
+        }
+
+        function getCurrentImageCue(t) {
+            for (let i = 0; i < imageCues.length; i++) {
+                const cue = imageCues[i];
+                if (t >= cue.start && t < cue.end) return cue;
+            }
+            return null;
+        }
+
+        function updateJangdanImage(cur) {
+            const imageCue = getCurrentImageCue(cur);
+            if (!imageCue || !imageCue.src) {
+                jangdanImageWidget.style.display = 'none';
+                return;
+            }
+
+            jangdanImageWidget.style.display = 'block';
+            const { src } = imageCue;
+            const resolvedSrc = `${src}?v=${IMAGE_CACHE_BUSTER}`;
+
+            if (jangdanImage.dataset.src === resolvedSrc) return;
+            jangdanImage.dataset.src = resolvedSrc;
+            jangdanImage.onload = () => {
+                jangdanImage.style.display = 'block';
+                jangdanImageFallback.style.display = 'none';
+            };
+            jangdanImage.onerror = () => {
+                jangdanImageWidget.style.display = 'none';
+            };
+            jangdanImage.src = resolvedSrc;
+        }
+
+        // ─── Canvas Setup ───
+        function resize() {
+            dpr = window.devicePixelRatio || 1;
+            cw = canvas.clientWidth;
+            ch = canvas.clientHeight;
+            canvas.width = cw * dpr;
+            canvas.height = ch * dpr;
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+            nw = nonghyeonCanvas.clientWidth;
+            nh = nonghyeonCanvas.clientHeight;
+            nonghyeonCanvas.width = Math.max(1, Math.floor(nw * dpr));
+            nonghyeonCanvas.height = Math.max(1, Math.floor(nh * dpr));
+            nctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+            nowX = LANE_LABEL_W + (cw - LANE_LABEL_W) * NOWLINE_RATIO;
+            const mainRect = canvas.getBoundingClientRect();
+            const pitchRect = nonghyeonCanvas.getBoundingClientRect();
+            // Align the pitch playhead to the same viewport x-position as the main playhead.
+            nonghyeonNowX = Math.max(0, Math.min(nw, nowX + mainRect.left - pitchRect.left));
+
+            const topM = 50, botM = 50;
+            const avail = ch - topM - botM;
+            const maxSpacing = avail / (LANE_DEFS.length - 1 || 1);
+            const spacing = Math.min(LANE_FIXED_SPACING, maxSpacing);
+            const centerY = ch * 0.5;
+            const startY = centerY - spacing * (LANE_DEFS.length - 1) * 0.5;
+            laneYs = LANE_DEFS.map((_, i) => startY + i * spacing);
+        }
+
+        // ─── Rendering ───
+        function timeToX(t, cur) { return nowX + (t - cur) * pps; }
+
+        function drawJangdanBg(cur) {
+            for (const sec of jangdanTypeSections) {
+                const x1 = Math.max(timeToX(sec.start, cur), LANE_LABEL_W);
+                const x2 = Math.min(timeToX(sec.end, cur), cw);
+                if (x2 < LANE_LABEL_W || x1 > cw) continue;
+                const style = JANGDAN_STYLE[sec.label];
+                if (style) {
+                    ctx.fillStyle = rgba(style.accent, 0.34);
+                    ctx.fillRect(x1, 0, x2 - x1, ch);
+                }
+            }
+
+            // Jangdan type change boundaries
+            for (const sec of jangdanTypeSections) {
+                const x = timeToX(sec.start, cur);
+                if (x < LANE_LABEL_W - 5 || x > cw + 5) continue;
+                const style = JANGDAN_STYLE[sec.label];
+                ctx.save();
+                ctx.strokeStyle = rgba(style?.accent || '#888', 0.78);
+                ctx.lineWidth = 2.8;
+                ctx.setLineDash([]);
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, ch); ctx.stroke();
+                ctx.restore();
+
+                ctx.fillStyle = rgba(style?.accent || '#aaa', 0.7);
+                ctx.font = '500 12px "Noto Sans KR", sans-serif';
+                ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+                ctx.fillText(sec.label, x + 8, 8);
+            }
+
+            // Beat boundaries with accent weight (strong / medium / weak)
+            for (const bm of beatMarkers) {
+                const x = timeToX(bm.t, cur);
+                if (x < LANE_LABEL_W || x > cw) continue;
+                const isStrong = bm.accent >= 0.95;
+                const isMedium = bm.accent >= 0.5 && bm.accent < 0.95;
+                const alpha = isStrong ? 0.95 : (isMedium ? 0.62 : 0.28);
+                const width = isStrong ? 5.8 : (isMedium ? 3.4 : 1.8);
+                const base = JANGDAN_STYLE[bm.label]?.accent || '#FFD700';
+                const color = isStrong ? base : (isMedium ? base : '#FFFFFF');
+
+                ctx.save();
+                ctx.strokeStyle = rgba(color, alpha);
+                ctx.lineWidth = width;
+                if (isStrong) {
+                    ctx.shadowColor = rgba(base, 0.85);
+                    ctx.shadowBlur = 18;
+                }
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, ch); ctx.stroke();
+                ctx.restore();
+
+                // Accent marker for the first beat (musical accent sign)
+                if (isStrong) {
+                    const ay = 30;
+                    ctx.save();
+                    ctx.strokeStyle = rgba(base, 0.95);
+                    ctx.lineWidth = 6.2;
+                    ctx.lineCap = 'round';
+                    ctx.beginPath();
+                    ctx.moveTo(x - 24, ay - 16);
+                    ctx.lineTo(x, ay);
+                    ctx.lineTo(x - 24, ay + 16);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            }
+        }
+
+        function drawLanes() {
+            // Lane track stripes
+            const stripeH = Math.min(LANE_STRIPE_HEIGHT, ch / LANE_DEFS.length * 0.9);
+            for (let i = 0; i < LANE_DEFS.length; i++) {
+                ctx.fillStyle = 'rgba(255,255,255,0.012)';
+                const r = Math.min(stripeH / 2, 6);
+                roundRect(ctx, LANE_LABEL_W, laneYs[i] - stripeH/2, cw - LANE_LABEL_W, stripeH, r);
+                ctx.fill();
+
+                ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+                ctx.lineWidth = 0.5;
+                ctx.beginPath();
+                ctx.moveTo(LANE_LABEL_W, laneYs[i]);
+                ctx.lineTo(cw, laneYs[i]);
+                ctx.stroke();
+            }
+
+            // Label panel
+            ctx.fillStyle = 'rgba(7,10,20,0.97)';
+            ctx.fillRect(0, 0, LANE_LABEL_W, ch);
+            ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(LANE_LABEL_W, 0); ctx.lineTo(LANE_LABEL_W, ch); ctx.stroke();
+
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = '700 13px "Noto Sans KR", sans-serif';
+            for (let i = 0; i < LANE_DEFS.length; i++) {
+                const lane = LANE_DEFS[i];
+                const y = laneYs[i];
+                const boxW = LANE_LABEL_W - 12;
+                const boxH = 24;
+                const boxX = 6;
+                const boxY = y - boxH / 2;
+
+                roundRect(ctx, boxX, boxY, boxW, boxH, 6);
+                ctx.fillStyle = rgba(lane.color || '#999', 0.2);
+                ctx.fill();
+                ctx.strokeStyle = rgba(lane.color || '#999', 0.65);
+                ctx.lineWidth = 1.2;
+                ctx.stroke();
+
+                ctx.fillStyle = 'rgba(255,255,255,0.96)';
+                ctx.fillText(lane.name, LANE_LABEL_W / 2, y);
+            }
+        }
+
+        function drawNowLine() {
+            const t = performance.now() * 0.003;
+            const pulseA = 0.06 + 0.03 * Math.sin(t);
+            const cur = audio.currentTime;
+            let nearStrong = 0;
+            for (const bm of beatMarkers) {
+                if (bm.accent < 0.95) continue;
+                const dt = Math.abs(bm.t - cur);
+                if (dt < 0.18) nearStrong = Math.max(nearStrong, 1 - dt / 0.18);
+            }
+            const grad = ctx.createLinearGradient(nowX - 30, 0, nowX + 30, 0);
+            grad.addColorStop(0, 'rgba(255,215,0,0)');
+            grad.addColorStop(0.5, `rgba(255,215,0,${pulseA + nearStrong * 0.18})`);
+            grad.addColorStop(1, 'rgba(255,215,0,0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(nowX - 30, 0, 60, ch);
+
+            ctx.strokeStyle = `rgba(255,215,0,${0.5 + 0.15 * Math.sin(t) + nearStrong * 0.28})`;
+            ctx.lineWidth = 2 + nearStrong * 1.8;
+            ctx.beginPath(); ctx.moveTo(nowX, 0); ctx.lineTo(nowX, ch); ctx.stroke();
+        }
+
+        function drawNotes(cur) {
+            const visBefore = (nowX - LANE_LABEL_W) / pps;
+            const visAfter = (cw - nowX) / pps;
+            const tMin = cur - visBefore - 1;
+            const tMax = cur + visAfter + 1;
+
+            for (const o of onsets) {
+                if (o.t < tMin || o.t > tMax) continue;
+                const x = timeToX(o.t, cur);
+                if (x < LANE_LABEL_W - 30 || x > cw + 30) continue;
+
+                const li = laneNoteMap[o.note];
+                if (li === undefined) continue;
+                const y = laneYs[li];
+                const color = NOTE_COLORS[o.note] || '#888';
+                const baseR = (NOTE_RADIUS[o.note] || NOTE_RADIUS.default) * NOTE_VISIBILITY_BOOST;
+
+                const dt = o.t - cur;
+                let alpha, r = baseR;
+
+                if (dt > 0) {
+                    // Upcoming: subtle dimming when far away, brightening as it nears
+                    alpha = Math.min(1.0, 0.35 + 0.65 * Math.max(0, 1 - dt * 0.12));
+                    if (dt < 0.5) {
+                        const antic = 1 - dt * 2;
+                        r = baseR * (1 + antic * 0.2);
+                    }
+                } else {
+                    // Past: keep visible longer for readability
+                    alpha = Math.max(0.38, 1 + dt * 0.7);
+                }
+
+                // Glow when near playline
+                if (Math.abs(dt) < 0.25) {
+                    const glow = (0.25 - Math.abs(dt)) / 0.25;
+                    ctx.beginPath();
+                    ctx.arc(x, y, r + 12 * glow, 0, Math.PI * 2);
+                    ctx.fillStyle = rgba(color, glow * 0.3 * alpha);
+                    ctx.fill();
+                }
+
+                // Circle
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.fillStyle = rgba(color, Math.min(1, alpha * 0.95));
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+                ctx.lineWidth = 1.8;
+                ctx.stroke();
+
+                // Label
+                if (alpha > 0.2 && x > LANE_LABEL_W + 5) {
+                    const fs = o.note.length > 1 ? 10 : 13;
+                    ctx.font = `500 ${fs}px "Noto Sans KR", sans-serif`;
+                    ctx.fillStyle = `rgba(255,255,255,${alpha * 0.85})`;
+                    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.fillText(o.note, x, y + 0.5);
+                }
+            }
+        }
+
+        function processHits(cur) {
+            for (const o of onsets) {
+                if (!o.crossed && o.t <= cur) {
+                    o.crossed = true;
+                    const li = laneNoteMap[o.note];
+                    if (li !== undefined) {
+                        hitEffects.push({
+                            time: cur, y: laneYs[li],
+                            color: NOTE_COLORS[o.note] || '#888'
+                        });
+                    }
+                }
+            }
+        }
+
+        function drawHitEffects(cur) {
+            hitEffects = hitEffects.filter(e => cur - e.time < 0.6);
+            for (const e of hitEffects) {
+                const elapsed = cur - e.time;
+                const p = elapsed / 0.6;
+                const r = 15 + p * 50;
+                const a = (1 - p) * 0.45;
+                ctx.beginPath();
+                ctx.arc(nowX, e.y, r, 0, Math.PI * 2);
+                ctx.strokeStyle = rgba(e.color, a);
+                ctx.lineWidth = 2.5 * (1 - p);
+                ctx.stroke();
+            }
+        }
+
+        function drawNonghyeon(cur, jd) {
+            if (nw <= 0 || nh <= 0) return;
+            nctx.clearRect(0, 0, nw, nh);
+
+            nctx.fillStyle = 'rgba(8, 10, 18, 0.95)';
+            nctx.fillRect(0, 0, nw, nh);
+
+            nctx.strokeStyle = 'rgba(255,255,255,0.06)';
+            nctx.lineWidth = 1;
+            nctx.beginPath();
+            nctx.moveTo(0, nh * 0.5);
+            nctx.lineTo(nw, nh * 0.5);
+            nctx.stroke();
+
+            // Keep contour subdued so jangdan marks remain visually primary.
+            const color = '#C9CFDA';
+            if (pitchContour.length < 2) {
+                nctx.fillStyle = 'rgba(255,255,255,0.5)';
+                nctx.font = '11px "Noto Sans KR", sans-serif';
+                nctx.textAlign = 'left';
+                nctx.textBaseline = 'middle';
+                nctx.fillText('pitch_contour.csv를 찾지 못했거나 데이터가 비어 있습니다.', 8, nh * 0.5);
+                return;
+            }
+
+            const nowXBand = nonghyeonNowX;
+            const tMin = cur - nowXBand / pps;
+            const tMax = cur + (nw - nowXBand) / pps;
+            const start = Math.max(0, pitchLowerBound(tMin) - 1);
+            let end = pitchLowerBound(tMax + 0.01);
+            end = Math.min(pitchContour.length - 1, end + 1);
+            if (end <= start) return;
+
+            const yPad = 4;
+            const ySpanLog = Math.max(1e-6, pitchMaxLog - pitchMinLog);
+            const bandH = Math.max(6, (nh - yPad * 2) * PITCH_VIEW_RATIO);
+            const bandTop = (nh - bandH) * 0.5;
+            const toY = (f) => {
+                const fLog = Math.log10(Math.max(1e-9, f));
+                const p = Math.max(0, Math.min(1, (fLog - pitchMinLog) / ySpanLog));
+                return (bandTop + bandH) - p * bandH;
+            };
+            const toX = (t) => nowXBand + (t - cur) * pps;
+
+            const drawPitchPath = (lineWidth, alpha) => {
+                nctx.beginPath();
+                let moved = false;
+                let penDown = false;
+                for (let i = start; i <= end; i++) {
+                    const pt = pitchContour[i];
+                    const x = toX(pt.t);
+                    if (x < -5 || x > nw + 5) continue;
+                    if (!pt.valid) {
+                        penDown = false;
+                        continue;
+                    }
+                    const y = toY(pt.f);
+                    if (!penDown) {
+                        nctx.moveTo(x, y);
+                        penDown = true;
+                        moved = true;
+                    } else {
+                        nctx.lineTo(x, y);
+                    }
+                }
+                if (!moved) return false;
+                nctx.strokeStyle = rgba(color, alpha);
+                nctx.lineWidth = lineWidth;
+                nctx.stroke();
+                return true;
+            };
+
+            if (!drawPitchPath(1.4, 0.62)) return;
+            drawPitchPath(3.2, 0.16);
+
+            // Current-time playhead
+            nctx.strokeStyle = 'rgba(255,215,0,0.9)';
+            nctx.lineWidth = 1.4;
+            nctx.beginPath();
+            nctx.moveTo(nowXBand, 0);
+            nctx.lineTo(nowXBand, nh);
+            nctx.stroke();
+        }
+
+        function getCurrentJangdan(t) {
+            for (let i = jangdanTypeSections.length - 1; i >= 0; i--) {
+                if (t >= jangdanTypeSections[i].start) return jangdanTypeSections[i];
+            }
+            return jangdanTypeSections[0] || { label: '—', start: 0, end: 0 };
+        }
+        function isNearStrongBeat(t) {
+            for (const bm of beatMarkers) {
+                if (bm.accent >= 0.95 && Math.abs(bm.t - t) < 0.16) return true;
+            }
+            return false;
+        }
+
+        function updateUI(cur) {
+            const d = getDuration();
+            timeDisplay.textContent = `${formatTime(cur)} / ${formatTime(d)}`;
+            if (d > 0) {
+                const pct = Math.max(0, Math.min(100, (cur / d) * 100));
+                progressFill.style.width = `${pct}%`;
+                globalPlayed.style.width = `${pct}%`;
+                globalNeedle.style.left = `${pct}%`;
+                jangdanStripNeedle.style.left = `${pct}%`;
+                globalEnd.textContent = formatTime(d);
+                if (progressGradient) {
+                    progressFill.style.background = progressGradient;
+                    progressFill.style.backgroundSize = `${progressContainer.clientWidth}px 100%`;
+                }
+            }
+            const jd = getCurrentJangdan(cur);
+            const style = JANGDAN_STYLE[jd.label];
+            jangdanLabelEl.textContent = jd.label;
+            jangdanLabelEl.style.color = style?.accent || '#ccc';
+            const strongText = isNearStrongBeat(cur) ? ' • 강박' : '';
+            currentJangdanBadge.textContent = `${displayJangdanName(jd.label)} 장단 연주중${strongText}`;
+            currentJangdanBadge.style.color = style?.accent || 'rgba(255,255,255,0.9)';
+            jangdanMiniLabels.forEach((el) => {
+                el.classList.toggle('active', el.dataset.label === jd.label);
+            });
+            updateJangdanImage(cur);
+            drawNonghyeon(cur, jd);
+        }
+
+        // ─── Main Loop ───
+        function render() {
+            const cur = audio.currentTime;
+
+            ctx.clearRect(0, 0, cw, ch);
+            ctx.fillStyle = '#0B0E1A';
+            ctx.fillRect(0, 0, cw, ch);
+
+            drawJangdanBg(cur);
+            drawLanes();
+            drawNotes(cur);
+            drawNowLine();
+            processHits(cur);
+            drawHitEffects(cur);
+            updateUI(cur);
+
+            requestAnimationFrame(render);
+        }
+
+        // ─── Controls ───
+        function togglePlay() {
+            if (isPlaying) {
+                audio.pause();
+                isPlaying = false;
+                playBtn.textContent = '▶';
+            } else {
+                audio.play().catch((err) => {
+                    isPlaying = false;
+                    playBtn.textContent = '▶';
+                    const hint = overlay.querySelector('.start-hint');
+                    hint.textContent = '재생을 시작할 수 없습니다: ' + err.message;
+                    hint.style.color = '#EF5350';
+                });
+                isPlaying = true;
+                playBtn.textContent = '❚❚';
+            }
+        }
+
+        function getDuration() {
+            if (isFinite(audio.duration) && audio.duration > 0) return audio.duration;
+            if (onsets.length) return onsets[onsets.length - 1].t + 3;
+            return 200;
+        }
+
+        function seekTo(t) {
+            audio.currentTime = Math.max(0, Math.min(t, getDuration()));
+            resetCrossed();
+        }
+
+        function resetCrossed() {
+            const t = audio.currentTime;
+            onsets.forEach(o => { o.crossed = o.t <= t; });
+            hitEffects = [];
+        }
+
+        overlay.addEventListener('click', () => {
+            if (!dataReady) return;
+            overlay.classList.add('hidden');
+            togglePlay();
+        });
+
+        playBtn.addEventListener('click', togglePlay);
+
+        progressContainer.addEventListener('click', (e) => {
+            const rect = progressContainer.getBoundingClientRect();
+            seekTo(((e.clientX - rect.left) / rect.width) * getDuration());
+        });
+        globalTrack.addEventListener('click', (e) => {
+            const rect = globalTrack.getBoundingClientRect();
+            seekTo(((e.clientX - rect.left) / rect.width) * getDuration());
+        });
+
+        document.getElementById('zoomIn').addEventListener('click', () => {
+            pps = Math.min(pps * 1.3, 800);
+        });
+        document.getElementById('zoomOut').addEventListener('click', () => {
+            pps = Math.max(pps / 1.3, 40);
+        });
+
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            pps = e.deltaY < 0
+                ? Math.min(pps * 1.1, 800)
+                : Math.max(pps / 1.1, 40);
+        }, { passive: false });
+
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const dt = (x - nowX) / pps;
+            seekTo(audio.currentTime + dt);
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+            else if (e.code === 'ArrowRight') seekTo(audio.currentTime + 5);
+            else if (e.code === 'ArrowLeft') seekTo(audio.currentTime - 5);
+            else if (e.key === '+' || e.key === '=') pps = Math.min(pps * 1.2, 800);
+            else if (e.key === '-' || e.key === '_') pps = Math.max(pps / 1.2, 40);
+        });
+
+        audio.addEventListener('ended', () => {
+            isPlaying = false;
+            playBtn.textContent = '▶';
+        });
+
+        window.addEventListener('resize', resize);
+
+        // ─── Utils ───
+        function roundRect(ctx, x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            ctx.lineTo(x + r, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+            ctx.lineTo(x, y + r);
+            ctx.quadraticCurveTo(x, y, x + r, y);
+            ctx.closePath();
+        }
+
+        // ─── Init ───
+        async function init() {
+            resize();
+            render();
+            audio.load();
+            await loadData();
+
+            // Fallback: if metadata is loaded but "ready" events were missed,
+            // allow user interaction instead of keeping the buffering message.
+            setTimeout(() => {
+                tryPromoteAudioReady();
+                if (dataReady && !audioReady && audio.readyState >= HTMLMediaElement.HAVE_METADATA) {
+                    overlay.querySelector('.start-hint').textContent = '클릭하여 시작';
+                }
+            }, 1500);
+        }
+
+        init();
+    })();
+    </script>
+</body>
+</html>
